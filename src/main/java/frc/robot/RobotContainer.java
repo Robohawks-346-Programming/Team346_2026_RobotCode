@@ -5,7 +5,9 @@ import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.auto.NamedCommands;
-
+import com.pathplanner.lib.path.PathPlannerPath;
+import com.pathplanner.lib.path.PathConstraints;
+import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
@@ -53,598 +55,670 @@ import frc.robot.subsystems.vision.VisionIOPhotonSim;
 import frc.robot.subsystems.vision.VisionLocalizer;
 
 public class RobotContainer {
-    private static final boolean DRIVE_ENABLED = true;
-    // Red target provided by the team. Blue target is mirrored across field length.
-    private static final Translation2d RED_HUB_TARGET = new Translation2d(11.907, 4.030);
-    private static final Translation2d BLUE_HUB_TARGET = new Translation2d(
-            VisionConstants.aprilTagLayout.getFieldLength() - RED_HUB_TARGET.getX(),
-            RED_HUB_TARGET.getY());
-    private static final double AUTO_INTAKE_EVENT_SECONDS = 20;
-    private static final double AUTO_SHOOT_EVENT_SECONDS = 11.0;
-    private static final double AUTO_INTAKE_EVENT_SECONDS_Comingback = 5.0;
-    private static final double AUTO_SHOOT_MOVE_EVENT_SECONDS = 10.0; // for hard auto
-    private static final double SHOOT_STAGE1_SECONDS = 0.5;
-    private static final double SHOOT_STAGE2_SECONDS = 0.5;
-    private static final double HARD_AUTO_BACK_METERS = 0.26;//hard auto
-    private static final double HARD_AUTO_BACK_SPEED_MPS = 0.5;
-    private static final double AIM_TRIGGER_THRESHOLD = 0.25;
-    private static final double MOVING_SHOT_TRANSLATION_INPUT_LIMIT = 0.5;
-    public static final double AUTO_SHOOT_NAMED_SECONDS = 11.0;
-    public static final double AUTO_SHOOT_NAMED_SECONDS_DEPOT = 5.0;
-    private boolean useFieldRelative = true;
+        private static final boolean DRIVE_ENABLED = true;
+        // Red target provided by the team. Blue target is mirrored across field length.
+        private static final Translation2d RED_HUB_TARGET = new Translation2d(11.907, 4.030);
+        private static final Translation2d BLUE_HUB_TARGET = new Translation2d(
+                        VisionConstants.aprilTagLayout.getFieldLength() - RED_HUB_TARGET.getX(),
+                        RED_HUB_TARGET.getY());
+        private static final double AUTO_INTAKE_EVENT_SECONDS = 20;
+        private static final double AUTO_SHOOT_EVENT_SECONDS = 11.0;
+        private static final double AUTO_INTAKE_EVENT_SECONDS_Comingback = 5.0;
+        private static final double AUTO_SHOOT_MOVE_EVENT_SECONDS = 10.0; // for hard auto
+        private static final double SHOOT_STAGE1_SECONDS = 0.5;
+        private static final double SHOOT_STAGE2_SECONDS = 0.5;
+        private static final double HARD_AUTO_BACK_METERS = 0.26;// hard auto
+        private static final double HARD_AUTO_BACK_SPEED_MPS = 0.5;
+        private static final double AIM_TRIGGER_THRESHOLD = 0.25;
+        private static final double MOVING_SHOT_TRANSLATION_INPUT_LIMIT = 0.5;
+        public static final double AUTO_SHOOT_NAMED_SECONDS = 11.0;
+        public static final double AUTO_SHOOT_NAMED_SECONDS_DEPOT = 5.0;
+        private boolean useFieldRelative = true;
 
-    private final Drive drive;
-    private final VisionLocalizer vision;
-    private final Shooter shooter;
-    private final Intake intake;
-    private final IntakeArm intakeArm;
-    // private final climb climbSubsystem;
-    private final ShooterAutoMap autoMap;
+        private final Drive drive;
+        private final VisionLocalizer vision;
+        private final Shooter shooter;
+        private final Intake intake;
+        private final IntakeArm intakeArm;
+        // private final climb climbSubsystem;
+        private final ShooterAutoMap autoMap;
 
-    private final CommandXboxController controller;
-    private final Joystick operatorControl;
-    private Trigger movingShotButton;
+        private final CommandXboxController controller;
+        private final Joystick operatorControl;
+        private Trigger movingShotButton;
 
-    public final JoystickButton BUTTON_1;
-    public final JoystickButton BUTTON_2;
-    public final JoystickButton BUTTON_3;
-    public final JoystickButton BUTTON_4;
-    public final JoystickButton BUTTON_5;
-    public final JoystickButton BUTTON_6;
-    public final JoystickButton BUTTON_7;
-    public final JoystickButton BUTTON_8;
-    public final JoystickButton BUTTON_9;
-    public final JoystickButton BUTTON_10;
-    public final JoystickButton BUTTON_11;
-    public final JoystickButton BUTTON_12;
-    public final JoystickButton BUTTON_13;
-    public final JoystickButton BUTTON_14;
-    public final JoystickButton BUTTON_15;
-    public final JoystickButton BUTTON_16;
+        public final JoystickButton BUTTON_1;
+        public final JoystickButton BUTTON_2;
+        public final JoystickButton BUTTON_3;
+        public final JoystickButton BUTTON_4;
+        public final JoystickButton BUTTON_5;
+        public final JoystickButton BUTTON_6;
+        public final JoystickButton BUTTON_7;
+        public final JoystickButton BUTTON_8;
+        public final JoystickButton BUTTON_9;
+        public final JoystickButton BUTTON_10;
+        public final JoystickButton BUTTON_11;
+        public final JoystickButton BUTTON_12;
+        public final JoystickButton BUTTON_13;
+        public final JoystickButton BUTTON_14;
+        public final JoystickButton BUTTON_15;
+        public final JoystickButton BUTTON_16;
 
-    private final POVButton operatorPovUp;
-    private final POVButton operatorPovDown;
+        private final POVButton operatorPovUp;
+        private final POVButton operatorPovDown;
 
-    private final LoggedDashboardChooser<Command> autoChooser;
+        private final LoggedDashboardChooser<Command> autoChooser;
 
-    private boolean controlsInverted = false;
+        private boolean controlsInverted = false;
         private double offset;
-    private MovingShotCalculator.MovingShotResult cachedMovingShotResult = null;
+        private MovingShotCalculator.MovingShotResult cachedMovingShotResult = null;
 
-    public RobotContainer() {
-        offset = 0;
-        int driverPort = selectDriverControllerPort();
-        controller = new CommandXboxController(driverPort);
+        public RobotContainer() {
+                offset = 0;
+                int driverPort = selectDriverControllerPort();
+                controller = new CommandXboxController(driverPort);
 
-        int operatorPort = Constants.OperatorConstants.OPERATOR_CONTROLLER_PORT;
-        if (Constants.currentMode == Constants.Mode.SIM && operatorPort == driverPort) {
-            operatorPort = (driverPort == 0) ? 1 : 0;
+                int operatorPort = Constants.OperatorConstants.OPERATOR_CONTROLLER_PORT;
+                if (Constants.currentMode == Constants.Mode.SIM && operatorPort == driverPort) {
+                        operatorPort = (driverPort == 0) ? 1 : 0;
+                }
+                operatorControl = new Joystick(operatorPort);
+
+                BUTTON_1 = new JoystickButton(operatorControl, 1);
+                BUTTON_2 = new JoystickButton(operatorControl, 2);
+                BUTTON_3 = new JoystickButton(operatorControl, 3);
+                BUTTON_4 = new JoystickButton(operatorControl, 4);
+                BUTTON_5 = new JoystickButton(operatorControl, 5);
+                BUTTON_6 = new JoystickButton(operatorControl, 6);
+                BUTTON_7 = new JoystickButton(operatorControl, 7);
+                BUTTON_8 = new JoystickButton(operatorControl, 8);
+                BUTTON_9 = new JoystickButton(operatorControl, 9);
+                BUTTON_10 = new JoystickButton(operatorControl, 10);
+                BUTTON_11 = new JoystickButton(operatorControl, 11);
+                BUTTON_12 = new JoystickButton(operatorControl, 12);
+                BUTTON_13 = new JoystickButton(operatorControl, 13);
+                BUTTON_14 = new JoystickButton(operatorControl, 14);
+                BUTTON_15 = new JoystickButton(operatorControl, 15);
+                BUTTON_16 = new JoystickButton(operatorControl, 16);
+
+                operatorPovUp = new POVButton(operatorControl, 0);
+                operatorPovDown = new POVButton(operatorControl, 180);
+
+                switch (Constants.currentMode) {
+                        case REAL:
+                                drive = new Drive(
+                                                new GyroIOPigeon2(),
+                                                new ModuleIOTalonFX(TunerConstants.FrontLeft),
+                                                new ModuleIOTalonFX(TunerConstants.FrontRight),
+                                                new ModuleIOTalonFX(TunerConstants.BackLeft),
+                                                new ModuleIOTalonFX(TunerConstants.BackRight));
+                                vision = createVisionSystem();
+                                break;
+
+                        case SIM:
+                                drive = new Drive(
+                                                new GyroIO() {
+                                                },
+                                                new ModuleIOSim(TunerConstants.FrontLeft),
+                                                new ModuleIOSim(TunerConstants.FrontRight),
+                                                new ModuleIOSim(TunerConstants.BackLeft),
+                                                new ModuleIOSim(TunerConstants.BackRight));
+                                vision = createVisionSystem();
+                                break;
+
+                        default:
+                                drive = new Drive(
+                                                new GyroIO() {
+                                                },
+                                                new ModuleIO() {
+                                                },
+                                                new ModuleIO() {
+                                                },
+                                                new ModuleIO() {
+                                                },
+                                                new ModuleIO() {
+                                                });
+                                vision = new VisionLocalizer(drive::addVisionMeasurement, drive, new VisionIO() {
+                                });
+                }
+                // drive.setPose(new Pose2d(
+                // 13.0,
+                // 2.0,
+                // Rotation2d.fromDegrees(0)
+                // ));
+
+                ShooterIO shooterIO = switch (Constants.currentMode) {
+                        case REAL -> new ShooterIOReal();
+                        case SIM -> new ShooterIOSim();
+                        default -> new ShooterIO() {
+                        };
+                };
+                shooter = new Shooter(shooterIO);
+                autoMap = new ShooterAutoMap();
+
+                IntakeIO intakeIO = switch (Constants.currentMode) {
+                        case REAL -> new IntakeIOReal();
+                        case SIM -> new IntakeIOSim();
+                        default -> new IntakeIO() {
+                        };
+                };
+                intake = new Intake(intakeIO);
+
+                IntakeArmIO intakeArmIO = switch (Constants.currentMode) {
+                        case REAL -> new IntakeArmIOReal();
+                        case SIM -> new IntakeArmIOSim();
+                        default -> new IntakeArmIO() {
+                        };
+                };
+                intakeArm = new IntakeArm(intakeArmIO);
+
+                // ClimbIO climbIO = switch (Constants.currentMode) {
+                // case REAL -> new ClimbIOReal();
+                // case SIM -> new ClimbIOSim();
+                // default -> new ClimbIO() {};
+                // };
+                // climbSubsystem = new climb(climbIO);
+                vision.setVisionConsumer(drive::addVisionMeasurement);
+
+                configureAutoCommands();
+                autoChooser = createAutoChooserSafe();
+
+                configureButtonBindings();
         }
-        operatorControl = new Joystick(operatorPort);
 
-        BUTTON_1 = new JoystickButton(operatorControl, 1);
-        BUTTON_2 = new JoystickButton(operatorControl, 2);
-        BUTTON_3 = new JoystickButton(operatorControl, 3);
-        BUTTON_4 = new JoystickButton(operatorControl, 4);
-        BUTTON_5 = new JoystickButton(operatorControl, 5);
-        BUTTON_6 = new JoystickButton(operatorControl, 6);
-        BUTTON_7 = new JoystickButton(operatorControl, 7);
-        BUTTON_8 = new JoystickButton(operatorControl, 8);
-        BUTTON_9 = new JoystickButton(operatorControl, 9);
-        BUTTON_10 = new JoystickButton(operatorControl, 10);
-        BUTTON_11 = new JoystickButton(operatorControl, 11);
-        BUTTON_12 = new JoystickButton(operatorControl, 12);
-        BUTTON_13 = new JoystickButton(operatorControl, 13);
-        BUTTON_14 = new JoystickButton(operatorControl, 14);
-        BUTTON_15 = new JoystickButton(operatorControl, 15);
-        BUTTON_16 = new JoystickButton(operatorControl, 16);
-
-        operatorPovUp = new POVButton(operatorControl, 0);
-        operatorPovDown = new POVButton(operatorControl, 180);
-
-        switch (Constants.currentMode) {
-            case REAL:
-                drive = new Drive(
-                        new GyroIOPigeon2(),
-                        new ModuleIOTalonFX(TunerConstants.FrontLeft),
-                        new ModuleIOTalonFX(TunerConstants.FrontRight),
-                        new ModuleIOTalonFX(TunerConstants.BackLeft),
-                        new ModuleIOTalonFX(TunerConstants.BackRight));
-                vision = createVisionSystem();
-                break;
-
-            case SIM:
-                drive = new Drive(
-                        new GyroIO() {
-                        },
-                        new ModuleIOSim(TunerConstants.FrontLeft),
-                        new ModuleIOSim(TunerConstants.FrontRight),
-                        new ModuleIOSim(TunerConstants.BackLeft),
-                        new ModuleIOSim(TunerConstants.BackRight));
-                vision = createVisionSystem();
-                break;
-
-            default:
-                drive = new Drive(
-                        new GyroIO() {
-                        },
-                        new ModuleIO() {
-                        },
-                        new ModuleIO() {
-                        },
-                        new ModuleIO() {
-                        },
-                        new ModuleIO() {
-                        });
-                vision = new VisionLocalizer(drive::addVisionMeasurement, drive, new VisionIO() {
-                });
+        private static int selectDriverControllerPort() {
+                if (Constants.currentMode == Constants.Mode.SIM) {
+                        // In sim, the keyboard joystick is often port 1 (see simgui-ds.json)
+                        return DriverStation.isJoystickConnected(1) ? 1 : 0;
+                }
+                return 0;
         }
 
-        ShooterIO shooterIO = switch (Constants.currentMode) {
-            case REAL -> new ShooterIOReal();
-            case SIM -> new ShooterIOSim();
-            default -> new ShooterIO() {
-            };
-        };
-        shooter = new Shooter(shooterIO);
-        autoMap = new ShooterAutoMap();
-
-        IntakeIO intakeIO = switch (Constants.currentMode) {
-            case REAL -> new IntakeIOReal();
-            case SIM -> new IntakeIOSim();
-            default -> new IntakeIO() {
-            };
-        };
-        intake = new Intake(intakeIO);
-
-        IntakeArmIO intakeArmIO = switch (Constants.currentMode) {
-            case REAL -> new IntakeArmIOReal();
-            case SIM -> new IntakeArmIOSim();
-            default -> new IntakeArmIO() {
-            };
-        };
-        intakeArm = new IntakeArm(intakeArmIO);
-
-        // ClimbIO climbIO = switch (Constants.currentMode) {
-        // case REAL -> new ClimbIOReal();
-        // case SIM -> new ClimbIOSim();
-        // default -> new ClimbIO() {};
-        // };
-        // climbSubsystem = new climb(climbIO);
-        vision.setVisionConsumer(drive::addVisionMeasurement);
-
-        configureAutoCommands();
-        autoChooser = createAutoChooserSafe();
-
-        configureButtonBindings();
-    }
-
-    private static int selectDriverControllerPort() {
-        if (Constants.currentMode == Constants.Mode.SIM) {
-            // In sim, the keyboard joystick is often port 1 (see simgui-ds.json)
-            return DriverStation.isJoystickConnected(1) ? 1 : 0;
+        private LoggedDashboardChooser<Command> createAutoChooserSafe() {
+                try {
+                        SendableChooser<Command> chooser = AutoBuilder.buildAutoChooser();
+                        chooser.addOption("hardauto", hardAutoCommand());
+                        return new LoggedDashboardChooser<>("Auto Choices", chooser);
+                } catch (Exception e) {
+                        DriverStation.reportError(
+                                        "Failed to load PathPlanner autos. Falling back to Do Nothing auto.\n"
+                                                        + e.getMessage(),
+                                        e.getStackTrace());
+                        SendableChooser<Command> fallbackChooser = new SendableChooser<>();
+                        fallbackChooser.setDefaultOption("Do Nothing", Commands.none());
+                        fallbackChooser.addOption("hardauto", hardAutoCommand());
+                        return new LoggedDashboardChooser<>("Auto Choices", fallbackChooser);
+                }
         }
-        return 0;
-    }
 
-    private LoggedDashboardChooser<Command> createAutoChooserSafe() {
-        try {
-            SendableChooser<Command> chooser = AutoBuilder.buildAutoChooser();
-            chooser.addOption("hardauto", hardAutoCommand());
-            return new LoggedDashboardChooser<>("Auto Choices", chooser);
-        } catch (Exception e) {
-            DriverStation.reportError(
-                    "Failed to load PathPlanner autos. Falling back to Do Nothing auto.\n" + e.getMessage(),
-                    e.getStackTrace());
-            SendableChooser<Command> fallbackChooser = new SendableChooser<>();
-            fallbackChooser.setDefaultOption("Do Nothing", Commands.none());
-            fallbackChooser.addOption("hardauto", hardAutoCommand());
-            return new LoggedDashboardChooser<>("Auto Choices", fallbackChooser);
+        // auto commands
+        private void configureAutoCommands() {
+                Command autoIntake = intake.runIntake().withTimeout(AUTO_INTAKE_EVENT_SECONDS);
+                Command autoIntake5 = intake.runIntake().withTimeout(AUTO_INTAKE_EVENT_SECONDS_Comingback);
+                Command autoArmDown = intakeArm.jogDownCommand().withTimeout(1);
+                Command autoShoot = shooter.runAutoShoot(this::getAutoShootDistanceFeet)
+                                .withTimeout(AUTO_SHOOT_NAMED_SECONDS)
+                                .finallyDo(interrupted -> shooter.stop());
+                Command autoShootDepot = shooter.runAutoShoot(this::getAutoShootDistanceFeet)
+                                .withTimeout(AUTO_SHOOT_NAMED_SECONDS_DEPOT)
+                                .finallyDo(interrupted -> shooter.stop());
+                // Command autoAim = AkitDriveCommands.joystickDriveWithAim(
+                // drive,
+                // () -> 0.0,
+                // () -> 0.0,
+                // () -> 0.0,
+                // () -> true,
+                // getAllianceAimTarget()
+                // ).withTimeout(1);
+
+                // Requested named auto commands
+                NamedCommands.registerCommand("AutoIntake5", autoIntake5);
+                NamedCommands.registerCommand("AutoIntake", autoIntake);
+                NamedCommands.registerCommand("AutoArmDown", autoArmDown);
+                NamedCommands.registerCommand("AutoShoot", autoShoot);
+                // NamedCommands.registerCommand("AutoAim", autoAim);
+                NamedCommands.registerCommand("autoShootDepot", autoShootDepot);
+
+                // Backward-compatible aliases
+                NamedCommands.registerCommand("Intake", autoIntake);
+                NamedCommands.registerCommand("intake", autoIntake);
+                NamedCommands.registerCommand("ArmDown", autoArmDown);
+                NamedCommands.registerCommand("armdown", autoArmDown);
+                NamedCommands.registerCommand("Shoot", autoShoot);
+                NamedCommands.registerCommand("shoot", autoShoot);
         }
-    }
 
-   
-    // auto commands
-    private void configureAutoCommands() {
-        Command autoIntake = intake.runIntake().withTimeout(AUTO_INTAKE_EVENT_SECONDS);
-        Command autoIntake5 = intake.runIntake().withTimeout(AUTO_INTAKE_EVENT_SECONDS_Comingback);
-        Command autoArmDown = intakeArm.moveDownCommand();
-        Command autoShoot = shooter.runAutoShoot(this::getAutoShootDistanceFeet)
-                .withTimeout(AUTO_SHOOT_NAMED_SECONDS)
-                .finallyDo(interrupted -> shooter.stop());
-        Command autoShootDepot = shooter.runAutoShoot(this::getAutoShootDistanceFeet)
-                .withTimeout(AUTO_SHOOT_NAMED_SECONDS_DEPOT)
-                .finallyDo(interrupted -> shooter.stop());
-        // Command autoAim = AkitDriveCommands.joystickDriveWithAim(
-        // drive,
-        // () -> 0.0,
-        //  () -> 0.0,
-        //  () -> 0.0,
-        //  () -> true,
-        //  getAllianceAimTarget()
-        // ).withTimeout(1);
-                
-                
-                        
+        private Command hardAutoCommand() {
+                double backSeconds = 0.5;
+                double direction = 1.0;
+                Command driveBack = Commands.run(
+                                () -> drive.runVelocity(
+                                                new ChassisSpeeds(HARD_AUTO_BACK_SPEED_MPS * direction, 0.0, 0.0)),
+                                drive)
+                                .withTimeout(backSeconds)
+                                .andThen(Commands.runOnce(drive::stop, drive));
 
-        // Requested named auto commands
-        NamedCommands.registerCommand("AutoIntake5", autoIntake5);
-        NamedCommands.registerCommand("AutoIntake", autoIntake);
-        NamedCommands.registerCommand("AutoArmDown", autoArmDown);
-        NamedCommands.registerCommand("AutoShoot", autoShoot);
-        // NamedCommands.registerCommand("AutoAim", autoAim);
-         NamedCommands.registerCommand("autoShootDepot", autoShootDepot);
-        
+                return Commands.sequence(
+                                Commands.race(driveBack, Commands.waitSeconds(0.5)),
 
-        // Backward-compatible aliases
-        NamedCommands.registerCommand("Intake", autoIntake);
-        NamedCommands.registerCommand("intake", autoIntake);
-        NamedCommands.registerCommand("ArmDown", autoArmDown);
-        NamedCommands.registerCommand("armdown", autoArmDown);
-        NamedCommands.registerCommand("Shoot", autoShoot);
-        NamedCommands.registerCommand("shoot", autoShoot);
-    }
-
-    private Command hardAutoCommand() {
-        double backSeconds = 0.5;
-        double direction = 1.0;
-        Command driveBack = Commands.run(
-                () -> drive.runVelocity(new ChassisSpeeds(HARD_AUTO_BACK_SPEED_MPS * direction, 0.0, 0.0)),
-                drive)
-                .withTimeout(backSeconds)
-                .andThen(Commands.runOnce(drive::stop, drive));
-
-        return Commands.sequence(
-                Commands.race(driveBack, Commands.waitSeconds(0.5)),
-
-                Commands.runOnce(drive::stop, drive),
-                Commands.waitSeconds(1.0),
-                intakeArm.moveDownCommand(),
-                intake.runIntake().withTimeout(2),
-                stagedShootCommand6ft().withTimeout(AUTO_SHOOT_EVENT_SECONDS));
-    }
-
-    /**
-     * Creates vision system with automatically detected cameras.
-     */
-    private VisionLocalizer createVisionSystem() {
-        if (Constants.currentMode == Constants.Mode.REAL) {
-            return new VisionLocalizer(
-                    drive::addVisionMeasurement,
-                    drive,
-                    new VisionIOPhotonReal(VisionConstants.cameraNames[0], VisionConstants.vehicleToCameras[0]),
-                    new VisionIOPhotonReal(VisionConstants.cameraNames[1], VisionConstants.vehicleToCameras[1]),
-                    new VisionIOPhotonReal(VisionConstants.cameraNames[2], VisionConstants.vehicleToCameras[2]));
-        } else {
-            return new VisionLocalizer(
-                    drive::addVisionMeasurement,
-                    drive,
-                    new VisionIOPhotonSim(
-                            VisionConstants.cameraNames[0],
-                            VisionConstants.vehicleToCameras[0],
-                            () -> drive.getPose()),
-                    new VisionIOPhotonSim(
-                            VisionConstants.cameraNames[1],
-                            VisionConstants.vehicleToCameras[1],
-                            () -> drive.getPose()),
-                    new VisionIOPhotonSim(
-                            VisionConstants.cameraNames[2],
-                            VisionConstants.vehicleToCameras[2],
-                            () -> drive.getPose()));
+                                Commands.runOnce(drive::stop, drive),
+                                Commands.waitSeconds(1.0),
+                                intakeArm.moveDownCommand(),
+                                intake.runIntake().withTimeout(2),
+                                stagedShootCommand6ft().withTimeout(AUTO_SHOOT_EVENT_SECONDS));
         }
-    }
 
-    private Translation2d getAllianceAimTarget() {
-    Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
-
-    return alliance == Alliance.Red
-            ? RED_HUB_TARGET
-            : BLUE_HUB_TARGET;
-}
-
-    private double getAutoShootDistanceFeet() {
-       
-        return ShooterAutoMap.getDistanceFeet(drive.getPose(), getAllianceAimTarget(),offset);
-    }
-
-    private MovingShotCalculator.MovingShotResult getMovingShotResult() {
-        if (!isMovingShotLockActive()) {
-            return null;
+        /**
+         * Creates vision system with automatically detected cameras.
+         */
+        private VisionLocalizer createVisionSystem() {
+                if (Constants.currentMode == Constants.Mode.REAL) {
+                        return new VisionLocalizer(
+                                        drive::addVisionMeasurement,
+                                        drive,
+                                        new VisionIOPhotonReal(VisionConstants.cameraNames[0],
+                                                        VisionConstants.vehicleToCameras[0]),
+                                        new VisionIOPhotonReal(VisionConstants.cameraNames[1],
+                                                        VisionConstants.vehicleToCameras[1]),
+                                        new VisionIOPhotonReal(VisionConstants.cameraNames[2],
+                                                        VisionConstants.vehicleToCameras[2]));
+                } else {
+                        return new VisionLocalizer(
+                                        drive::addVisionMeasurement,
+                                        drive,
+                                        new VisionIOPhotonSim(
+                                                        VisionConstants.cameraNames[0],
+                                                        VisionConstants.vehicleToCameras[0],
+                                                        () -> drive.getPose()),
+                                        new VisionIOPhotonSim(
+                                                        VisionConstants.cameraNames[1],
+                                                        VisionConstants.vehicleToCameras[1],
+                                                        () -> drive.getPose()),
+                                        new VisionIOPhotonSim(
+                                                        VisionConstants.cameraNames[2],
+                                                        VisionConstants.vehicleToCameras[2],
+                                                        () -> drive.getPose()));
+                }
         }
-        if (cachedMovingShotResult == null) {
-            cachedMovingShotResult = MovingShotCalculator.calculate(
-                    drive.getPose(),
-                    getAllianceAimTarget(),
-                    drive.getRobotSpeeds());
+
+        private Translation2d getAllianceAimTarget() {
+                Alliance alliance = DriverStation.getAlliance().orElse(Alliance.Blue);
+
+                return alliance == Alliance.Red
+                                ? RED_HUB_TARGET
+                                : BLUE_HUB_TARGET;
         }
-        return cachedMovingShotResult;
-    }
 
-    private Rotation2d getMovingShotTargetHeading() {
-        MovingShotCalculator.MovingShotResult result = getMovingShotResult();
-        return result != null
-                ? result.targetHeading()
-                : getAllianceAimTarget().minus(drive.getPose().getTranslation()).getAngle();
-    }
+        private double getAutoShootDistanceFeet() {
 
-    private Translation2d getMovingShotDriveAimTarget() {
-        MovingShotCalculator.MovingShotResult result = getMovingShotResult();
-        if (result == null) {
-            return getAllianceAimTarget();
+                return ShooterAutoMap.getDistanceFeet(drive.getPose(), getAllianceAimTarget(), offset);
         }
-        Translation2d robotTranslation = drive.getPose().getTranslation();
-        Rotation2d targetHeading = result.targetHeading();
-        return robotTranslation.plus(new Translation2d(targetHeading.getCos(), targetHeading.getSin()));
-    }
 
-    private double getMovingShotDistanceFeet() {
-        MovingShotCalculator.MovingShotResult result = getMovingShotResult();
-        return result != null ? result.effectiveDistanceFeet() : getAutoShootDistanceFeet();
-    }
-
-    private boolean isMovingShotReadyToFeed() {
-        MovingShotCalculator.MovingShotResult result = getMovingShotResult();
-        return result != null
-                && (result.simulation().shouldMake() || drive.getDistanceToHubFeet() <= 4.95)
-                && shooter.atVelocitySetpoint();
-    }
-
-    private boolean isMovingShotLockActive() {
-        return movingShotButton != null && movingShotButton.getAsBoolean();
-    }
-
-    private boolean isAimLockActive() {
-        return controller.getLeftTriggerAxis() > AIM_TRIGGER_THRESHOLD || isMovingShotLockActive();
-    }
-
-    private Translation2d getDriveAimTarget() {
-        return isMovingShotLockActive() ? getMovingShotDriveAimTarget() : getAllianceAimTarget();
-    }
-
-    private double capMovingShotTranslationInput(double input) {
-        if (!isMovingShotLockActive()) {
-            return input;
+        private MovingShotCalculator.MovingShotResult getMovingShotResult() {
+                if (!isMovingShotLockActive()) {
+                        return null;
+                }
+                if (cachedMovingShotResult == null) {
+                        cachedMovingShotResult = MovingShotCalculator.calculate(
+                                        drive.getPose(),
+                                        getAllianceAimTarget(),
+                                        drive.getRobotSpeeds());
+                }
+                return cachedMovingShotResult;
         }
-        return Math.max(-MOVING_SHOT_TRANSLATION_INPUT_LIMIT, Math.min(MOVING_SHOT_TRANSLATION_INPUT_LIMIT, input));
-    }
 
-    private void logMovingShotTrajectory() {
-        MovingShotCalculator.MovingShotResult result = getMovingShotResult();
-        if (result != null) {
-            Logger.recordOutput("MovingShot/Trajectory", result.simulation().trajectory());
+        private Rotation2d getMovingShotTargetHeading() {
+                MovingShotCalculator.MovingShotResult result = getMovingShotResult();
+                return result != null
+                                ? result.targetHeading()
+                                : getAllianceAimTarget().minus(drive.getPose().getTranslation()).getAngle();
         }
-    }
 
-    // for auto shooting
-    // private Command autoShootMoveCommand() {
-    // return Commands.deadline(
-    // Commands.waitSeconds(AUTO_SHOOT_MOVE_EVENT_SECONDS),
-    // shooter.runAutoShoot(this::getAutoShootDistanceFeet))
-    // .finallyDo(interrupted -> shooter.stop());
-    // }
-
-    private Command stagedShootCommand() {
-        return Commands.sequence(
-
-                Commands.run(
-                        () -> shooter.setTargets(
-                                ShooterConstants.TALON_2_INCH_TARGET_RPM,
-                                ShooterConstants.TALON_3_INCH_TARGET_RPM,
-                                0.0,
-                                0.0),
-                        shooter).withTimeout(SHOOT_STAGE1_SECONDS),
-                Commands.run(
-                        () -> shooter.setTargets(
-                                ShooterConstants.TALON_2_INCH_TARGET_RPM,
-                                ShooterConstants.TALON_3_INCH_TARGET_RPM,
-                                ShooterConstants.NEO_550_SPEED_PERCENT,
-                                ShooterConstants.ROLLER_SPEED_PERCENT),
-                        shooter).withTimeout(SHOOT_STAGE2_SECONDS),
-                shooter.runShoot())
-                .finallyDo(interrupted -> shooter.stop());
-    }
-
-    private Command stagedShootCommand6ft() {
-        return Commands.sequence(
-
-                Commands.run(
-                        () -> shooter.setTargets(
-                                ShooterConstants.TALON_2_INCH_TARGET_RPM_6ft,
-                                ShooterConstants.TALON_3_INCH_TARGET_RPM_6ft,
-                                0.0,
-                                0.0),
-                        shooter).withTimeout(SHOOT_STAGE1_SECONDS),
-                Commands.run(
-                        () -> shooter.setTargets(
-                                ShooterConstants.TALON_2_INCH_TARGET_RPM_6ft,
-                                ShooterConstants.TALON_3_INCH_TARGET_RPM_6ft,
-                                ShooterConstants.NEO_550_SPEED_PERCENT,
-                                ShooterConstants.ROLLER_SPEED_PERCENT),
-                        shooter).withTimeout(SHOOT_STAGE2_SECONDS),
-                shooter.runShoot())
-                .finallyDo(interrupted -> shooter.stop());
-    }
-
-    private Command stagedShootCommand7ft() {
-        return Commands.sequence(
-
-                Commands.run(
-                        () -> shooter.setTargets(
-                                ShooterConstants.TALON_2_INCH_TARGET_RPM_7ft,
-                                ShooterConstants.TALON_3_INCH_TARGET_RPM_7ft,
-                                0.0,
-                                0.0),
-                        shooter).withTimeout(SHOOT_STAGE1_SECONDS),
-                Commands.run(
-                        () -> shooter.setTargets(
-                                ShooterConstants.TALON_2_INCH_TARGET_RPM_7ft,
-                                ShooterConstants.TALON_3_INCH_TARGET_RPM_7ft,
-                                ShooterConstants.NEO_550_SPEED_PERCENT,
-                                ShooterConstants.ROLLER_SPEED_PERCENT),
-                        shooter).withTimeout(SHOOT_STAGE2_SECONDS),
-                shooter.runShoot())
-                .finallyDo(interrupted -> shooter.stop());
-    }
-
-    private void configureButtonBindings() {
-        movingShotButton = controller.leftBumper();
-
-        drive.setDefaultCommand(
-    AkitDriveCommands.joystickDriveWithAim(
-        drive,
-        () -> capMovingShotTranslationInput( controller.getLeftY()),
-        () -> capMovingShotTranslationInput(controller.getLeftX()),
-        () -> -controller.getRightX() ,
-        this::isAimLockActive,
-        this::getDriveAimTarget
-    ));
-
-        // Toggle drive controls inversion with X
-        controller.x().onTrue(
-                Commands.runOnce(
-                        () -> {
-                            controlsInverted = !controlsInverted;
-                            System.out.println("Drive controls: " + (controlsInverted ? "INVERTED" : "NORMAL"));
-                        }));
-
-        // Reset robot heading on A
-        // controller.a().onTrue(
-        // Commands.runOnce(
-        // () -> {
-        // drive.zeroGyro();
-        // System.out.println("Robot heading reset - current front is now forward");
-        // },
-        // drive)
-        // .ignoringDisable(true));
-
-        // controller.start().onTrue(
-        // Commands.runOnce(
-        // () -> {
-        // drive.zeroGyro();
-        // System.out.println("Gyro zeroed - robot heading reset to zero");
-        // },
-        // drive)
-        // .ignoringDisable(true));
-        controller.rightTrigger()
-        .whileTrue(Commands.run(drive::stopWithX, drive));
-
-
-        controller.y()
-                .whileTrue(intake.runIntake())
-                .onFalse(intake.stopIntake());
-
-        controller.rightBumper()
-                .whileTrue(shooter.runAutoShoot(this::getAutoShootDistanceFeet))
-                .onFalse(shooter.stopCoralIntake());
-
-        movingShotButton
-                .whileTrue(shooter.runAutoShootWhenReady(this::getMovingShotDistanceFeet, this::isMovingShotReadyToFeed))
-                .onFalse(shooter.stopCoralIntake());
-
-        // Stationary auto-shoot is on right bumper. Moving auto-shoot is on left bumper.
-
-        // Wheel "X" lock only when LB + RB + LT are all held.
-        // leftBumper.and(rightBumper).and(leftTrigger)
-        // .whileTrue(AkitDriveCommands.holdXLock(drive));
-
-        controller.povDown()
-                .whileTrue(intakeArm.jogDownCommand())
-                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
-        controller.povUp()
-                .whileTrue(intakeArm.jogUpCommand())
-                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
-
-        // controller.povRight().onTrue(climbSubsystem.moveOneOutputRevolutionCommand());
-        // controller.povLeft().onTrue(climbSubsystem.moveOneOutputRevolutionDownCommand());
-
-        BUTTON_1.whileTrue(intake.runIntake().alongWith(intakeArm.jogDownCommand())).onFalse(intake.stopIntake());
-        BUTTON_2.whileTrue(stagedShootCommand()).onFalse(shooter.stopCoralIntake());
-        BUTTON_3.whileTrue(stagedShootCommand6ft()).onFalse(shooter.stopCoralIntake());
-        BUTTON_4.whileTrue(stagedShootCommand7ft()).onFalse(shooter.stopCoralIntake());
-        BUTTON_5.onTrue(intakeArm.moveDownCommand());
-        BUTTON_14.onTrue(intakeArm.moveUpCommand());
-
-        BUTTON_7
-                .whileTrue(intakeArm.jogDownCommand())
-                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
-        BUTTON_8.whileTrue(intake.runOuttake()).onFalse(intake.stopIntake());
-        BUTTON_9
-    .whileTrue(
-        intake.runOuttakeWithRollers()
-            .alongWith(shooter.runRollersCommand(-50.0)) 
-    )
-    .onFalse(
-        Commands.runOnce(() -> {
-            intake.stopIntake();
-            shooter.stopRollers();
-        })
-    );
-    
-
-    
-     BUTTON_10.onTrue(shooter.runShootalltime());
-     BUTTON_11.onTrue(shooter.runShootalltimeStop());
-     BUTTON_12.whileTrue(shooter.runShootFeederCool().alongWith(intake.runOuttakeWithRollers()))
-     .onFalse(shooter.stopCoralIntake().alongWith(intake.stopIntake()));
-     BUTTON_13.whileTrue(intakeArm.jogUpCommand())
-                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
-     BUTTON_6.onTrue(intakeArm.moveToMidCommand());
-      BUTTON_16.whileTrue(intake.smartIntakeHold().alongWith(intakeArm.jogDownCommand())).onFalse(intake.stopIntake());
-
-
-       
-        // .beforeStarting(drive::enableXLockBrakeMode)
-        // .finallyDo(drive::disableXLockBrakeMode));
-
-        operatorPovDown
-                .whileTrue(intakeArm.jogDownCommand())
-                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
-        operatorPovUp
-                .whileTrue(intakeArm.jogUpCommand())
-                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
-
-        // new POVButton(operatorControl,
-        // 90).onTrue(climbSubsystem.moveOneOutputRevolutionCommand());
-        // new POVButton(operatorControl,
-        // 270).onTrue(climbSubsystem.moveOneOutputRevolutionDownCommand());
-    }
-
-    public Command getAutonomousCommand() {
-        return autoChooser.get();
-    }
-
-    public void teleopInit() {
-        // Teleop initialization if needed
-    }
-
-    public void robotPeriodic() {
-        if (isMovingShotLockActive()) {
-            logMovingShotTrajectory();
+        private Translation2d getMovingShotDriveAimTarget() {
+                MovingShotCalculator.MovingShotResult result = getMovingShotResult();
+                if (result == null) {
+                        return getAllianceAimTarget();
+                }
+                Translation2d robotTranslation = drive.getPose().getTranslation();
+                Rotation2d targetHeading = result.targetHeading();
+                return robotTranslation.plus(new Translation2d(targetHeading.getCos(), targetHeading.getSin()));
         }
-        cachedMovingShotResult = null;
-    }
 
-    public Drive getDrive() {
-        return drive;
-    }
+        private double getMovingShotDistanceFeet() {
+                MovingShotCalculator.MovingShotResult result = getMovingShotResult();
+                return result != null ? result.effectiveDistanceFeet() : getAutoShootDistanceFeet();
+        }
 
-    public VisionLocalizer getVision() {
-        return vision;
-    }
+        private boolean isMovingShotReadyToFeed() {
+                MovingShotCalculator.MovingShotResult result = getMovingShotResult();
+                return result != null
+                                && (result.simulation().shouldMake() || drive.getDistanceToHubFeet() <= 4.95)
+                                && shooter.atVelocitySetpoint();
+        }
 
-    public Shooter getShooter() {
-        return shooter;
-    }
+        private boolean isMovingShotLockActive() {
+                return movingShotButton != null && movingShotButton.getAsBoolean();
+        }
 
-    public Intake getIntake() {
-        return intake;
-    }
+        private boolean isAimLockActive() {
+                return controller.getLeftTriggerAxis() > AIM_TRIGGER_THRESHOLD || isMovingShotLockActive();
+        }
 
-    public IntakeArm getIntakeArm() {
-        return intakeArm;
-    }
+        private Translation2d getDriveAimTarget() {
+                return isMovingShotLockActive() ? getMovingShotDriveAimTarget() : getAllianceAimTarget();
+        }
 
-    // public climb getClimb() {
-    // return climbSubsystem;
-    // }
+        private double capMovingShotTranslationInput(double input) {
+                if (!isMovingShotLockActive()) {
+                        return input;
+                }
+                return Math.max(-MOVING_SHOT_TRANSLATION_INPUT_LIMIT,
+                                Math.min(MOVING_SHOT_TRANSLATION_INPUT_LIMIT, input));
+        }
+
+        private void logMovingShotTrajectory() {
+                MovingShotCalculator.MovingShotResult result = getMovingShotResult();
+                if (result != null) {
+                        Logger.recordOutput("MovingShot/Trajectory", result.simulation().trajectory());
+                }
+        }
+
+        // for auto shooting
+        // private Command autoShootMoveCommand() {
+        // return Commands.deadline(
+        // Commands.waitSeconds(AUTO_SHOOT_MOVE_EVENT_SECONDS),
+        // shooter.runAutoShoot(this::getAutoShootDistanceFeet))
+        // .finallyDo(interrupted -> shooter.stop());
+        // }
+
+        private Command stagedShootCommand() {
+                return Commands.sequence(
+
+                                Commands.run(
+                                                () -> shooter.setTargets(
+                                                                ShooterConstants.TALON_2_INCH_TARGET_RPM,
+                                                                ShooterConstants.TALON_3_INCH_TARGET_RPM,
+                                                                0.0,
+                                                                0.0),
+                                                shooter).withTimeout(SHOOT_STAGE1_SECONDS),
+                                Commands.run(
+                                                () -> shooter.setTargets(
+                                                                ShooterConstants.TALON_2_INCH_TARGET_RPM,
+                                                                ShooterConstants.TALON_3_INCH_TARGET_RPM,
+                                                                ShooterConstants.NEO_550_SPEED_PERCENT,
+                                                                ShooterConstants.ROLLER_SPEED_PERCENT),
+                                                shooter).withTimeout(SHOOT_STAGE2_SECONDS),
+                                shooter.runShoot())
+                                .finallyDo(interrupted -> shooter.stop());
+        }
+
+        private Command stagedShootCommand6ft() {
+                return Commands.sequence(
+
+                                Commands.run(
+                                                () -> shooter.setTargets(
+                                                                ShooterConstants.TALON_2_INCH_TARGET_RPM_6ft,
+                                                                ShooterConstants.TALON_3_INCH_TARGET_RPM_6ft,
+                                                                0.0,
+                                                                0.0),
+                                                shooter).withTimeout(SHOOT_STAGE1_SECONDS),
+                                Commands.run(
+                                                () -> shooter.setTargets(
+                                                                ShooterConstants.TALON_2_INCH_TARGET_RPM_6ft,
+                                                                ShooterConstants.TALON_3_INCH_TARGET_RPM_6ft,
+                                                                ShooterConstants.NEO_550_SPEED_PERCENT,
+                                                                ShooterConstants.ROLLER_SPEED_PERCENT),
+                                                shooter).withTimeout(SHOOT_STAGE2_SECONDS),
+                                shooter.runShoot())
+                                .finallyDo(interrupted -> shooter.stop());
+        }
+
+        private Command stagedShootCommand7ft() {
+                return Commands.sequence(
+
+                                Commands.run(
+                                                () -> shooter.setTargets(
+                                                                ShooterConstants.TALON_2_INCH_TARGET_RPM_9ft,
+                                                                ShooterConstants.TALON_3_INCH_TARGET_RPM_9ft,
+                                                                0.0,
+                                                                0.0),
+                                                shooter).withTimeout(SHOOT_STAGE1_SECONDS),
+                                Commands.run(
+                                                () -> shooter.setTargets(
+                                                                ShooterConstants.TALON_2_INCH_TARGET_RPM_9ft,
+                                                                ShooterConstants.TALON_3_INCH_TARGET_RPM_9ft,
+                                                                ShooterConstants.NEO_550_SPEED_PERCENT,
+                                                                ShooterConstants.ROLLER_SPEED_PERCENT),
+                                                shooter).withTimeout(SHOOT_STAGE2_SECONDS),
+                                shooter.runShoot())
+                                .finallyDo(interrupted -> shooter.stop());
+
+        }
+
+        private Pose2d getAllianceTarget(
+                        double redX,
+                        double redY,
+                        double redTheta) {
+
+                Alliance alliance = DriverStation.getAlliance()
+                                .orElse(Alliance.Blue);
+                Logger.recordOutput("alliance", alliance);
+                Logger.recordOutput("alliance/true/false", alliance == Alliance.Red);
+                if (alliance == Alliance.Red) {
+
+                        return new Pose2d(
+                                        redX,
+                                        redY,
+                                        Rotation2d.fromDegrees(redTheta));
+                }
+
+                else {
+                        return new Pose2d(
+                                        VisionConstants.aprilTagLayout.getFieldLength() - redX,
+                                        redY,
+                                        Rotation2d.fromDegrees(180 - redTheta));
+                }
+        }
+
+        private Command driveToPoint(double redX, double redY, double redTheta) {
+
+                Pose2d targetPose = getAllianceTarget(
+                                redX,
+                                redY,
+                                redTheta);
+
+                PathConstraints constraints = new PathConstraints(
+                                1.5,
+                                2.0,
+                                2.0,
+                                3.0);
+
+                return AutoBuilder.pathfindToPose(
+                                targetPose,
+                                constraints);
+        }
+
+        private void configureButtonBindings() {
+                // movingShotButton = controller.leftBumper();
+
+                drive.setDefaultCommand(
+                                AkitDriveCommands.joystickDriveWithAim(
+                                                drive,
+                                                () -> capMovingShotTranslationInput(
+                                                                controlsInverted ? controller.getLeftY()
+                                                                                : -controller.getLeftY()),
+                                                () -> capMovingShotTranslationInput(
+                                                                controlsInverted ? controller.getLeftX()
+                                                                                : -controller.getLeftX()),
+                                                () -> -controller.getRightX(),
+                                                this::isAimLockActive,
+                                                this::getDriveAimTarget));
+                controller.a()
+                                .whileTrue(
+                                                Commands.run(
+                                                                () -> drive.runVelocity(
+                                                                                new ChassisSpeeds(1.0, 0.0, 0.0)),
+                                                                drive))
+                                .onFalse(Commands.runOnce(drive::stop, drive));
+
+                // Toggle drive controls inversion with X
+                controller.x().onTrue(
+                                Commands.runOnce(
+                                                () -> {
+                                                        controlsInverted = !controlsInverted;
+                                                        System.out.println("Drive controls: "
+                                                                        + (controlsInverted ? "INVERTED" : "NORMAL"));
+                                                }));
+
+                controller.b().onTrue(driveToPoint(13, 4, 0));
+
+                // controller.b().whileTrue(AkitDriveCommands.joystickDriveAtAngle(drive, ()->
+                // 0, ()->0, ()->Rotation2d.fromDegrees(180)));
+
+                // Reset robot heading on A
+                // controller.a().onTrue(
+                // Commands.runOnce(
+                // () -> {
+                // drive.zeroGyro();
+                // System.out.println("Robot heading reset - current front is now forward");
+                // },
+                // drive)
+                // .ignoringDisable(true));
+
+                // controller.start().onTrue(
+                // Commands.runOnce(
+                // () -> {
+                // drive.zeroGyro();
+                // System.out.println("Gyro zeroed - robot heading reset to zero");
+                // },
+                // drive)
+                // .ignoringDisable(true));
+                controller.rightTrigger()
+                                .whileTrue(Commands.run(drive::stopWithX, drive));
+
+                controller.y()
+                                .whileTrue(intake.runIntake())
+                                .onFalse(intake.stopIntake());
+
+                controller.rightBumper()
+                                .whileTrue(shooter.runAutoShoot(this::getAutoShootDistanceFeet))
+                                .onFalse(shooter.stopCoralIntake());
+
+                // movingShotButton
+                // .whileTrue(
+                // shooter.runAutoShootWhenReady(this::getMovingShotDistanceFeet,
+                // this::isMovingShotReadyToFeed))
+                // .onFalse(shooter.stopCoralIntake());
+
+                // Stationary auto-shoot is on right bumper. Moving auto-shoot is on left
+                // bumper.
+
+                // Wheel "X" lock only when LB + RB + LT are all held.
+                // leftBumper.and(rightBumper).and(leftTrigger)
+                // .whileTrue(AkitDriveCommands.holdXLock(drive));
+
+                controller.povDown()
+                                .whileTrue(intakeArm.jogDownCommand())
+                                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
+                controller.povUp()
+                                .whileTrue(intakeArm.jogUpCommand())
+                                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
+
+                // controller.povRight().onTrue(climbSubsystem.moveOneOutputRevolutionCommand());
+                // controller.povLeft().onTrue(climbSubsystem.moveOneOutputRevolutionDownCommand());
+
+                BUTTON_1.whileTrue(
+                                intake.runIntake().alongWith(intakeArm.jogDownCommand()))
+                                .onFalse(Commands.runOnce(() -> {
+                                        intake.stop();
+                                        intakeArm.stop();
+                                }));
+                // BUTTON_1
+                // .whileTrue(intake.runIntake())
+                // .onFalse(intake.stopIntake());
+
+                BUTTON_2.whileTrue(stagedShootCommand()).onFalse(shooter.stopCoralIntake());
+                BUTTON_3.whileTrue(stagedShootCommand6ft()).onFalse(shooter.stopCoralIntake());
+                BUTTON_4.whileTrue(stagedShootCommand7ft()).onFalse(shooter.stopCoralIntake());
+                BUTTON_5.onTrue(intakeArm.moveDownCommand());
+                BUTTON_14.onTrue(intakeArm.moveUpCommand());
+
+                BUTTON_7
+                                .whileTrue(intakeArm.jogDownCommand())
+                                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
+                BUTTON_8.whileTrue(intake.runOuttake()).onFalse(intake.stopIntake());
+                BUTTON_9
+                                .whileTrue(
+                                                intake.runOuttakeWithRollers()
+                                                                .alongWith(shooter.runRollersCommand(-50.0)))
+                                .onFalse(
+                                                Commands.runOnce(() -> {
+                                                        intake.stopIntake();
+                                                        shooter.stopRollers();
+                                                }));
+
+                BUTTON_10.onTrue(shooter.runShootalltime());
+                BUTTON_11.onTrue(shooter.runShootalltimeStop());
+                BUTTON_12.whileTrue(shooter.runShootFeederCool().alongWith(intake.runOuttakeWithRollers()))
+                                .onFalse(shooter.stopCoralIntake().alongWith(intake.stopIntake()));
+                BUTTON_13.whileTrue(intakeArm.jogUpCommand())
+                                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
+                // BUTTON_6.onTrue(intakeArm.moveToMidCommand());
+                BUTTON_16.whileTrue(intake.smartIntakeHold().alongWith(intakeArm.jogDownCommand()))
+                                .onFalse(intake.stopIntake());
+
+                // .beforeStarting(drive::enableXLockBrakeMode)
+                // .finallyDo(drive::disableXLockBrakeMode));
+
+                operatorPovDown
+                                .whileTrue(intakeArm.jogDownCommand())
+                                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
+                operatorPovUp
+                                .whileTrue(intakeArm.jogUpCommand())
+                                .onFalse(Commands.runOnce(intakeArm::stop, intakeArm));
+
+                // new POVButton(operatorControl,
+                // 90).onTrue(climbSubsystem.moveOneOutputRevolutionCommand());
+                // new POVButton(operatorControl,
+                // 270).onTrue(climbSubsystem.moveOneOutputRevolutionDownCommand());
+        }
+
+        public Command getAutonomousCommand() {
+                return autoChooser.get();
+        }
+
+        public void teleopInit() {
+                // Teleop initialization if needed
+        }
+
+        public void robotPeriodic() {
+                if (isMovingShotLockActive()) {
+                        logMovingShotTrajectory();
+                }
+                cachedMovingShotResult = null;
+        }
+
+        public Drive getDrive() {
+                return drive;
+        }
+
+        public VisionLocalizer getVision() {
+                return vision;
+        }
+
+        public Shooter getShooter() {
+                return shooter;
+        }
+
+        public Intake getIntake() {
+                return intake;
+        }
+
+        public IntakeArm getIntakeArm() {
+                return intakeArm;
+        }
+
+        // public climb getClimb() {
+        // return climbSubsystem;
+        // }
 }

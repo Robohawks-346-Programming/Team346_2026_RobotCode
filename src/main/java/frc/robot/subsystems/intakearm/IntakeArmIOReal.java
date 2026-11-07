@@ -73,7 +73,8 @@ public class IntakeArmIOReal implements IntakeArmIO {
 		inputs.encoderAbsoluteRot = encoderAbsoluteRot.getValueAsDouble();
 		inputs.encoderAbsoluteDeg = inputs.encoderAbsoluteRot * 360.0;
 
-		// Safety: never drive the arm closed-loop without a valid absolute encoder reading.
+		// Safety: never drive the arm closed-loop without a valid absolute encoder
+		// reading.
 		if (!inputs.connectedEncoder) {
 			armMotor.setControl(neutralOut);
 			inputs.absoluteAngleDeg = 0.0;

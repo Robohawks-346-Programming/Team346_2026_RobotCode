@@ -49,8 +49,11 @@ public final class ShooterConstants {
 	public static final double TALON_3_INCH_TARGET_RPM_6ft = 3360.0;
 	public static final double TALON_2_INCH_TARGET_RPM_7ft = 4848.0; 
 	public static final double TALON_3_INCH_TARGET_RPM_7ft = 3566.0;
-	public static final double TALON_2_INCH_TARGET_RPM_8ft = 5160; 
+	public static final double TALON_2_INCH_TARGET_RPM_8ft = 5160;
+	public static final double TALON_2_INCH_TARGET_RPM_9ft = 5360; 
+	
 	public static final double TALON_3_INCH_TARGET_RPM_8ft = 3720;
+	public static final double TALON_3_INCH_TARGET_RPM_9ft = 3920;
 	public static final double TALON_2_INCH_TARGET_RPM_11ft = 6000.0;
 	public static final double TALON_3_INCH_TARGET_RPM_11ft = 4560.0;
 	

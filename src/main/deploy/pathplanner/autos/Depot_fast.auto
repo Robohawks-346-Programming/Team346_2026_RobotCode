@@ -5,12 +5,6 @@
     "data": {
       "commands": [
         {
-          "type": "named",
-          "data": {
-            "name": "AutoArmDown"
-          }
-        },
-        {
           "type": "parallel",
           "data": {
             "commands": [
@@ -27,7 +21,7 @@
                     {
                       "type": "path",
                       "data": {
-                        "pathName": "Depot21_fast"
+                        "pathName": "Depot21_fast_copy1"
                       }
                     },
                     {

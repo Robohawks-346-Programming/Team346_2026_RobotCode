@@ -5,12 +5,6 @@
     "data": {
       "commands": [
         {
-          "type": "named",
-          "data": {
-            "name": "AutoArmDown"
-          }
-        },
-        {
           "type": "parallel",
           "data": {
             "commands": [
@@ -39,7 +33,7 @@
                     {
                       "type": "path",
                       "data": {
-                        "pathName": "Depot41_fixed"
+                        "pathName": "Depot41_fast"
                       }
                     },
                     {

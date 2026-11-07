@@ -46,7 +46,7 @@ public class AkitDriveCommands {
         private static final double DEADBAND = 0.1;
         private static final double ROTATION_DEADBAND = 0.05; // Smaller deadband for rotation
         private static final double SPEED_SCALE = 0.75; // Scale down max speed (0.3 = 30% of max speed)
-        private static final double ROTATION_SCALE = 0.75; // Scale down max speed (0.3 = 30% of max speed)
+        private static final double ROTATION_SCALE = 0.8; // Scale down max speed (0.3 = 30% of max speed)
         private static final double ANGLE_KP = 5.0;
         private static final double ANGLE_KD = 0.4;
         private static final double ANGLE_MAX_VELOCITY = 8.0;
@@ -134,121 +134,111 @@ public class AkitDriveCommands {
                                 drive);
         }
 
-        
-      public static Command joystickDriveWithAim(
-        Drive drive,
-        DoubleSupplier xSupplier,
-        DoubleSupplier ySupplier,
-        DoubleSupplier omegaSupplier,
-        Supplier<Boolean> aimButton,
-        Supplier<Translation2d> aimTargetSupplier) {
+        public static Command joystickDriveWithAim(
+                        Drive drive,
+                        DoubleSupplier xSupplier,
+                        DoubleSupplier ySupplier,
+                        DoubleSupplier omegaSupplier,
+                        Supplier<Boolean> aimButton,
+                        Supplier<Translation2d> aimTargetSupplier) {
 
-    ProfiledPIDController angleController = new ProfiledPIDController(
-            ANGLE_KP,
-            0.0,
-            ANGLE_KD,
-            new TrapezoidProfile.Constraints(
-                    ANGLE_MAX_VELOCITY,
-                    ANGLE_MAX_ACCELERATION));
+                ProfiledPIDController angleController = new ProfiledPIDController(
+                                ANGLE_KP,
+                                0.0,
+                                ANGLE_KD,
+                                new TrapezoidProfile.Constraints(
+                                                ANGLE_MAX_VELOCITY,
+                                                ANGLE_MAX_ACCELERATION));
 
-    angleController.enableContinuousInput(-Math.PI, Math.PI);
-    angleController.setTolerance(Units.degreesToRadians(1));
+                angleController.enableContinuousInput(-Math.PI, Math.PI);
+                angleController.setTolerance(Units.degreesToRadians(1));
 
-    return Commands.run(
-            () -> {
+                return Commands.run(
+                                () -> {
 
-                // Translation from left stick
-                Translation2d linearVelocity = getLinearVelocityFromJoysticks(
-                        xSupplier.getAsDouble(),
-                        ySupplier.getAsDouble());
+                                        // Translation from left stick
+                                        Translation2d linearVelocity = getLinearVelocityFromJoysticks(
+                                                        xSupplier.getAsDouble(),
+                                                        ySupplier.getAsDouble());
 
-                double omega;
+                                        double omega;
 
-                if (aimButton.get()) {
-                    // =========================
-                    // AUTO AIM MODE
-                    // =========================
+                                        if (aimButton.get()) {
+                                                // =========================
+                                                // AUTO AIM MODE
+                                                // =========================
 
-                    Translation2d robotPosition =
-                            drive.getPose().getTranslation();
+                                                Translation2d robotPosition = drive.getPose().getTranslation();
 
-                    
+                                                // Remove this if your shooter faces forward
+                                                Rotation2d targetAngle = aimTargetSupplier.get()
+                                                                .minus(robotPosition)
+                                                                .getAngle();
 
-                    // Remove this if your shooter faces forward
-                   Rotation2d targetAngle =
-        aimTargetSupplier.get()
-                .minus(robotPosition)
-                .getAngle();
+                                                omega = angleController.calculate(
+                                                                drive.getRotation().getRadians(),
+                                                                targetAngle.getRadians());
 
-                    omega = angleController.calculate(
-                            drive.getRotation().getRadians(),
-                            targetAngle.getRadians());
+                                                // Stop small PID jitter
+                                                if (angleController.atGoal()) {
+                                                        omega = 0.0;
+                                                }
 
-                    // Stop small PID jitter
-                    if (angleController.atGoal()) {
-                        omega = 0.0;
-                    }
+                                                // Limit rotation speed
+                                                omega = MathUtil.clamp(
+                                                                omega,
+                                                                -drive.getMaxAngularSpeedRadPerSec(),
+                                                                drive.getMaxAngularSpeedRadPerSec());
 
-                    // Limit rotation speed
-                    omega = MathUtil.clamp(
-                            omega,
-                            -drive.getMaxAngularSpeedRadPerSec(),
-                            drive.getMaxAngularSpeedRadPerSec());
+                                        } else {
 
-                } else {
+                                                // =========================
+                                                // MANUAL ROTATION MODE
+                                                // =========================
 
-                    // =========================
-                    // MANUAL ROTATION MODE
-                    // =========================
+                                                double rawOmega = MathUtil.applyDeadband(
+                                                                omegaSupplier.getAsDouble(),
+                                                                ROTATION_DEADBAND);
 
-                    double rawOmega = MathUtil.applyDeadband(
-                            omegaSupplier.getAsDouble(),
-                            ROTATION_DEADBAND);
+                                                omega = Math.copySign(
+                                                                rawOmega * rawOmega,
+                                                                rawOmega)
+                                                                * drive.getMaxAngularSpeedRadPerSec()
+                                                                * ROTATION_SCALE;
 
-                    omega = Math.copySign(
-                            rawOmega * rawOmega,
-                            rawOmega)
-                            * drive.getMaxAngularSpeedRadPerSec()
-                            * ROTATION_SCALE;
+                                                // Prevent old aim target from affecting next use
+                                                angleController.reset(
+                                                                drive.getRotation().getRadians());
+                                        }
 
+                                        ChassisSpeeds speeds = new ChassisSpeeds(
+                                                        linearVelocity.getX()
+                                                                        * drive.getMaxLinearSpeedMetersPerSec()
+                                                                        * SPEED_SCALE,
 
-                    // Prevent old aim target from affecting next use
-                    angleController.reset(
-                            drive.getRotation().getRadians());
-                }
+                                                        linearVelocity.getY()
+                                                                        * drive.getMaxLinearSpeedMetersPerSec()
+                                                                        * SPEED_SCALE,
 
+                                                        omega);
 
-                ChassisSpeeds speeds = new ChassisSpeeds(
-                        linearVelocity.getX()
-                                * drive.getMaxLinearSpeedMetersPerSec()
-                                * SPEED_SCALE,
+                                        boolean isFlipped = false;
 
-                        linearVelocity.getY()
-                                * drive.getMaxLinearSpeedMetersPerSec()
-                                * SPEED_SCALE,
+                                        drive.runVelocity(
+                                                        ChassisSpeeds.fromFieldRelativeSpeeds(
+                                                                        speeds,
+                                                                        isFlipped
+                                                                                        ? drive.getRotation()
+                                                                                                        .plus(new Rotation2d(
+                                                                                                                        Math.PI))
+                                                                                        : drive.getRotation()));
+                                },
+                                drive)
 
-                        omega);
-
-
-                boolean isFlipped = false;
-                        
-
-
-                drive.runVelocity(
-                        ChassisSpeeds.fromFieldRelativeSpeeds(
-                                speeds,
-                                isFlipped
-                                        ? drive.getRotation()
-                                                .plus(new Rotation2d(Math.PI))
-                                        : drive.getRotation()));
-            },
-            drive)
-
-            // Reset PID when command starts
-            .beforeStarting(() ->
-                    angleController.reset(
-                            drive.getRotation().getRadians()));
-}
+                                // Reset PID when command starts
+                                .beforeStarting(() -> angleController.reset(
+                                                drive.getRotation().getRadians()));
+        }
 
         /**
          * Test command to force rotation - use this to verify rotation works.
